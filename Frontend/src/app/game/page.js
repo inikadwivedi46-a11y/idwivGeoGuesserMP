@@ -227,6 +227,11 @@ function useGameLogic(goalPoint) {
                         if (calculatedScore > docSnap.get("highScore")) {
                             await updateDoc(docRef, {highScore: calculatedScore})
                         }
+                        // Remember this round in recentScores (newest first, keep the last 5)
+                        const recent = docSnap.get("recentScores") ?? []
+                        await updateDoc(docRef, {
+                            recentScores: [calculatedScore, ...recent].slice(0, 5)
+                        })
                     }
                 } catch (error) {
                     console.error("Error updating scores", error);

@@ -47,6 +47,31 @@ export default function Lobby() {
   const videoBRef = useRef(null);
   const [name, setName] = useState("");
 
+  // Leaderboard pop-up: shows the signed-in player's own scores from users/{uid}.
+  // (The database rules only let each player read their own record.)
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [myScores, setMyScores] = useState(null);
+  const [leaderStatus, setLeaderStatus] = useState("loading"); // "loading" | "ready" | "error"
+
+  const openLeaderboard = async () => {
+    setShowLeaderboard(true);
+    setLeaderStatus("loading");
+    try {
+      const user = auth.currentUser;
+      const snap = await getDoc(doc(db, "users", user.uid));
+      setMyScores({
+        totalPoints: snap.get("totalPoints") ?? 0,
+        highScore: snap.get("highScore") ?? 0,
+        // New accounts start with placeholder zeros, so hide those
+        recentScores: (snap.get("recentScores") ?? []).filter((score) => score > 0),
+      });
+      setLeaderStatus("ready");
+    } catch (error) {
+      console.error("Error loading scores:", error);
+      setLeaderStatus("error");
+    }
+  };
+
   useEffect(() => {
     // Auth guard: if not signed in, redirect back to /login.
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -167,7 +192,61 @@ export default function Lobby() {
         <div className={styles.logoContainer}>
         <StartButton />
       </div>
+        <button
+          className={styles.leaderboardButton}
+          onClick={openLeaderboard}
+        >
+          <img src="/trophy.png" alt="" className={styles.leaderboardIcon} />
+          Leaderboard
+        </button>
       </div>
+
+      {showLeaderboard && (
+        <div className={styles.leaderboardOverlay} onClick={() => setShowLeaderboard(false)}>
+          <div className={styles.leaderboardPanel} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.leaderboardTitle}>Leaderboard</h2>
+            <p className={styles.leaderboardSubtitle}>Your scores</p>
+
+            {leaderStatus === "loading" && <p className={styles.leaderboardMessage}>Loading...</p>}
+            {leaderStatus === "error" && (
+              <p className={styles.leaderboardMessage}>Couldn't load the leaderboard. Try again in a moment.</p>
+            )}
+            {leaderStatus === "ready" && myScores && (
+              <>
+                <ul className={styles.leaderboardList}>
+                  <li className={`${styles.leaderboardRow} ${styles.leaderboardYou}`}>
+                    <span className={styles.leaderboardName}>Total points</span>
+                    <span className={styles.leaderboardPoints}>{myScores.totalPoints.toLocaleString()} pts</span>
+                  </li>
+                  <li className={styles.leaderboardRow}>
+                    <span className={styles.leaderboardName}>Best round</span>
+                    <span className={styles.leaderboardPoints}>{myScores.highScore.toLocaleString()} pts</span>
+                  </li>
+                </ul>
+
+                <h3 className={styles.leaderboardSection}>Recent rounds</h3>
+                {myScores.recentScores.length === 0 ? (
+                  <p className={styles.leaderboardMessage}>No rounds yet. Play a game to see your scores here!</p>
+                ) : (
+                  <ol className={styles.leaderboardList}>
+                    {myScores.recentScores.map((score, i) => (
+                      <li key={i} className={styles.leaderboardRow}>
+                        <span className={styles.leaderboardRank}>{i + 1}</span>
+                        <span className={styles.leaderboardName}>{i === 0 ? "Latest round" : `${i + 1} rounds ago`}</span>
+                        <span className={styles.leaderboardPoints}>{score.toLocaleString()} pts</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
+            )}
+
+            <button className={styles.leaderboardClose} onClick={() => setShowLeaderboard(false)}>
+              Close
+            </button>
+          </div>
+        </div>
+      )}
 
       
     </div>

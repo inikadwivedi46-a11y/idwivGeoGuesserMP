@@ -5,7 +5,7 @@ import styles from "./page.module.css";
 import LoginButton from "../../components/LoginButton.js";
 import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "../../components/firebase-config";
 
 // Move videos array outside component so it doesn't recreate on every render
@@ -55,11 +55,21 @@ export default function Login() {
         };
 
         try {
-          await setDoc(userRef, templateUserData, { merge: true });
-          console.log(
-            "User document created/updated (template applied) successfully for UID:",
-            user.uid
-          );
+          const userSnap = await getDoc(userRef);
+          if (!userSnap.exists()) {
+            // First sign-in: create the document with all the default values.
+            await setDoc(userRef, templateUserData);
+          } else {
+            // Returning player: only refresh their Google profile info.
+            // Never rewrite highScore/totalPoints here, or every login would reset them to 0.
+            await updateDoc(userRef, {
+              email: user.email,
+              displayName: user.displayName,
+              profilePicture: user.photoURL,
+            });
+          }
+
+          console.log("User document ready for UID:", user.uid);
 
           if (router.pathname === "/") {
             router.push("/lobby");
